@@ -1,0 +1,19 @@
+{
+  "kind": "evm_contracts",
+  "contracts": [
+    {
+      "contract": "HamsterRunNFT",
+      "constructorArgs": [
+        "$owner",
+        "0x74665dAecA35A2303e767E76a2FF1FB6F93e119f"
+      ]
+    },
+    {
+      "contract": "MatchQueue",
+      "constructorArgs": [
+        "$contract:HamsterRunNFT"
+      ]
+    }
+  ],
+  "notes": "HamsterRun v3 deploys a fresh Sepolia suite; existing v2 NFTs and game state are not migrated. HamsterRunNFT is hamsterrun (HMR), with supply cap 9999, one free mint per wallet, starting stamina 10 and no gameplay stamina cap. Its owner is $owner and its read-only SqueekCore binding is immutable. CoreReader and PointsLedger are inherited; GameMath is internal. Fed, Idle owners book six inclusive Core rounds: start = floor((timestamp - Core.configuration().genesisTimestamp) / 600) + 1, end = start + 5. Permissionless settlement requires Core.state().settledThroughRound >= end and reads Core.roundPage(start - 1, end, 6). Certified work W is the page end cumulativeWork minus start cumulativeWork; stamina gain is floor(2 * W * captured lastFeedBps / 10000). Certification lag reverts; certified zero work grants zero stamina and no training body credit. Defaults are 72-hour feeding, prices 0.0001/0.0002/0.0003 ETH and multipliers 10000/15000/20000 bps. Hunger blocks training starts and queue entry without burning NFTs. MatchQueue uses the new NFT, stamina bands and a ten-block entry wait; it has no owner. Both constructors are nonpayable and make no external calls. After deployment, $owner must verify and bind the new queue once using HamsterRunNFT.setMatchQueue(newQueue), then enable free minting with setMintOpen(true). These are owner operations, not manifest initialization calls; default food parameters need no setup. Feed revenue is withdrawable only to the current NFT owner. DESIGN.md pins formulas and boundaries; abi/HamsterRunNFT.json and abi/MatchQueue.json contain the application ABIs. No SQK issuance, yield, insurance, airdrop claims, pool or deployment funding is included."
+}
