@@ -1,0 +1,27 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["lib"]
+solc = "0.8.26"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+bytecode_hash = "none"
+
+[profile.default.fuzz]
+runs = 512
+seed = "0xbaf830ada79f2a3ded3bca9b270689b5115b737c37d804cb61cdc9a8b18ed84f"
+
+[profile.default.invariant]
+runs = 128
+depth = 64
+fail_on_revert = true
+
+[fmt]
+line_length = 110
+tab_width = 4
+bracket_spacing = true
+# Vendored dependencies keep their exact upstream bytes (see dependencies.json); only project code is formatted.
+ignore = ["lib/**"]

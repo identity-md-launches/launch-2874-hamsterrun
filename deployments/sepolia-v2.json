@@ -1,0 +1,11 @@
+{
+  "version": "2",
+  "chainId": 11155111,
+  "status": "legacy-addresses-from-request",
+  "parentJob": "https://explorer.imd.fun/jobs/bc21659e-db7c-49fc-ad15-b3a0f75645ba",
+  "contracts": {
+    "HamsterRunNFT": "0x140128b9208ee5de9690cd96b3bb7bc601d5b4ec",
+    "MatchQueue": "0x98d449abfaeaa0d0ebd0cf073f19faae24d32308"
+  },
+  "note": "These are the old timed-training suite, not the v3 certified-work deployment. No migration or upgrade of their storage is provided."
+}

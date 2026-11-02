@@ -1,0 +1,239 @@
+[
+  {
+    "type": "function",
+    "name": "configuration",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "result",
+        "type": "tuple",
+        "internalType": "struct ISqueekCore.CoreConfiguration",
+        "components": [
+          {
+            "name": "streamId",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "genesisTimestamp",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "roundDuration",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "maxWorkPerRound",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "maxRoundsPerBatch",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "guardian",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "reporter",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "initialWorkPerThousandBlocks",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "targetBlocksPerActiveRound",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "difficultySmoothingRounds",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "blockUnitsPerBlock",
+            "type": "uint96",
+            "internalType": "uint96"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "roundPage",
+    "inputs": [
+      {
+        "name": "afterRound",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "throughRound",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "maxRecords",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "result",
+        "type": "tuple",
+        "internalType": "struct ISqueekCore.RoundPage",
+        "components": [
+          {
+            "name": "certifiedThroughRound",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "start",
+            "type": "tuple",
+            "internalType": "struct ISqueekCore.LedgerPosition",
+            "components": [
+              {
+                "name": "cumulativeWork",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "cumulativeBlockUnits",
+                "type": "uint96",
+                "internalType": "uint96"
+              },
+              {
+                "name": "workPerThousandBlocks",
+                "type": "uint32",
+                "internalType": "uint32"
+              }
+            ]
+          },
+          {
+            "name": "end",
+            "type": "tuple",
+            "internalType": "struct ISqueekCore.LedgerPosition",
+            "components": [
+              {
+                "name": "cumulativeWork",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "cumulativeBlockUnits",
+                "type": "uint96",
+                "internalType": "uint96"
+              },
+              {
+                "name": "workPerThousandBlocks",
+                "type": "uint32",
+                "internalType": "uint32"
+              }
+            ]
+          },
+          {
+            "name": "rounds",
+            "type": "tuple[]",
+            "internalType": "struct ISqueekCore.RoundCheckpoint[]",
+            "components": [
+              {
+                "name": "roundId",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "cumulativeWork",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "cumulativeBlockUnits",
+                "type": "uint96",
+                "internalType": "uint96"
+              },
+              {
+                "name": "workPerThousandBlocks",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "dataHash",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "state",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "result",
+        "type": "tuple",
+        "internalType": "struct ISqueekCore.CoreState",
+        "components": [
+          {
+            "name": "settledThroughRound",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "cumulativeWork",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "cumulativeBlockUnits",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "blockHeight",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "blockProgress",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "workPerThousandBlocks",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "authorizationNonce",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "paused",
+            "type": "bool",
+            "internalType": "bool"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  }
+]

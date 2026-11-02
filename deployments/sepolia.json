@@ -1,0 +1,30 @@
+{
+  "version": "3.0.0",
+  "chainId": 11155111,
+  "network": "sepolia",
+  "status": "awaiting-network-deployment",
+  "owner": "0x6c14430adacc99e27f6180bc5a74d6768616bf4a",
+  "upstream": {
+    "SqueekCore": "0x74665dAecA35A2303e767E76a2FF1FB6F93e119f",
+    "abi": "../abi/SqueekCore.upstream.json"
+  },
+  "contracts": {},
+  "deploymentOrder": [
+    {
+      "contract": "HamsterRunNFT",
+      "parameters": {
+        "initialOwner": "0x6c14430adacc99e27f6180bc5a74d6768616bf4a",
+        "coreAddress": "0x74665dAecA35A2303e767E76a2FF1FB6F93e119f"
+      },
+      "abi": "../abi/HamsterRunNFT.json"
+    },
+    {
+      "contract": "MatchQueue",
+      "parameters": {
+        "nftAddress": "$contract:HamsterRunNFT"
+      },
+      "abi": "../abi/MatchQueue.json"
+    }
+  ],
+  "note": "This is a versioned deployment handoff, not a launch manifest or a claim of deployment. The network deployer supplies confirmed new addresses. Run tools/record-deployment.mjs after finality; it replaces this record only after verifying the exact runtimes and bindings."
+}
