@@ -35,7 +35,8 @@ contract GameHandler is Test {
 
     function feed(uint256 seed, uint8 tierSeed) external {
         uint256 id = 1 + seed % 8;
-        if (nft.hamster(id).activity != Activity.Idle) return;
+        Activity activity = nft.hamster(id).activity;
+        if (activity != Activity.Idle && activity != Activity.Training) return;
         uint8 tier = tierSeed % 3;
         uint256 price = nft.foodPrices(tier);
         vm.prank(players[id - 1]);
@@ -210,7 +211,7 @@ contract GameInvariantTest is GameTest {
                 assertLe(index, entries.length);
                 assertEq(entries[index - 1].tokenId, id);
                 assertEq(entries[index - 1].player, nft.ownerOf(id));
-                assertEq(band, ham.stamina / 25);
+                assertEq(band, queue.bandForStamina(ham.stamina));
             } else {
                 assertEq(index, 0);
             }

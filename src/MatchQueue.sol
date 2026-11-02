@@ -2,6 +2,7 @@
 pragma solidity 0.8.26;
 
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { HamsterRunNFT } from "./HamsterRunNFT.sol";
 import { GameMath, WeightClass } from "./GameMath.sol";
 import { PointsLedger } from "./PointsLedger.sol";
@@ -10,7 +11,10 @@ import { PointsLedger } from "./PointsLedger.sol";
 /// @notice Future-block randomness is suitable only for this non-financial testnet game.
 /// @dev No owner, privileged keeper, caller-selected seed, wagering, or manual opponent selection.
 contract MatchQueue is PointsLedger, ReentrancyGuard {
-    uint256 public constant BAND_WIDTH = 25;
+    /// @notice Stamina below this shares band 0; from here on each band spans a factor of two (see bandForStamina).
+    /// @dev Certified wheel work pays thousands of stamina per window at live Sepolia work levels, so a
+    ///      25-point linear grid would split pets with near-identical histories; a ratio grid keeps them paired.
+    uint256 public constant BAND_WIDTH = 500;
     uint256 public constant MAX_QUEUE_SIZE = 32;
     uint256 public constant QUEUE_TTL = 24 hours;
     /// @notice Blocks a pet must wait after enqueue before any round may lock it (about 2 minutes on Sepolia).
@@ -233,7 +237,14 @@ contract MatchQueue is PointsLedger, ReentrancyGuard {
     }
 
     function bandOf(uint256 tokenId) public view returns (uint256) {
-        return nft.hamster(tokenId).stamina / BAND_WIDTH;
+        return bandForStamina(nft.hamster(tokenId).stamina);
+    }
+
+    /// @notice Band 0 is stamina in [0, BAND_WIDTH); band k >= 1 is [BAND_WIDTH * 2^(k-1), BAND_WIDTH * 2^k).
+    /// @dev Any two pets in one band are within a factor of two of each other, whatever their absolute level.
+    function bandForStamina(uint256 stamina) public pure returns (uint256) {
+        uint256 scaled = stamina / BAND_WIDTH;
+        return scaled == 0 ? 0 : Math.log2(scaled) + 1;
     }
 
     function queueEntries(uint256 band) external view returns (Entry[] memory) {

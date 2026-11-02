@@ -182,7 +182,11 @@ contract CoreTrainingTest is GameTest {
         assertEq(nft.hamster(id).stamina, 10);
         assertEq(nft.hamster(id).bodyScore, 62);
         assertEq(uint256(nft.hamster(id).activity), uint256(Activity.Idle));
+        uint256 locked = vm.getBlockTimestamp() - born; // the one-hour window, settled as soon as certified
+        assertEq(locked, 1 hours);
         vm.warp(born + 1 days);
+        assertEq(nft.hamster(id).bodyScore, 62, "the locked hour is paused, not idle");
+        vm.warp(born + 1 days + locked);
         assertEq(nft.hamster(id).bodyScore, 57, "zero work does not reset inactivity");
         vm.prank(alice);
         nft.transferFrom(alice, bob, id);

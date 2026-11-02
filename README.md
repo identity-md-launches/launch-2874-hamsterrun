@@ -49,7 +49,9 @@ Full boundaries and arithmetic are pinned in [DESIGN.md](DESIGN.md).
 | Training gain | `floor(2 * W * lastFeedBps / 10000)` |
 | Default gain per physical work unit | 2 / 3 / 4 stamina; all tiers earn 0 when `W = 0` |
 | Weight | Fit at body score ≥70; Normal 35–69; Obese 0–34 |
-| Match band / wait | `floor(stamina / 25)` / 10 blocks per entry |
+| Feeding while booked | Allowed (Idle or Training); the booking keeps the food snapshot taken at `startTraining` |
+| Inactivity while booked | The idle clock pauses at booking; positive work resets it, zero work or cancel resumes it |
+| Match band / wait | Band 0 below 500 stamina, then `floor(log2(stamina / 500)) + 1` (each band spans ×2) / 10 blocks per entry |
 | Match attempts | 5 per NFT per Unix-epoch week |
 | Match reward | Winner +3 stamina/+10 points; loser +1 stamina/+2 points |
 
@@ -57,7 +59,7 @@ Two stamina per physical work unit is a chosen game conversion, not an upstream 
 
 Stamina uses checked `uint256` addition with no gameplay cap. The last feed's tier and bps are captured at booking. Only the token owner may start while fed and Idle. Anyone may settle once certified, including after food expiry. The owner may cancel at any time, forfeiting all work. Cancellation remains possible if Core is paused, unavailable, or incompatible.
 
-Zero-work settlement clears the lock without a training body bonus or inactivity reset. Positive-work settlement keeps v2's body formula and cheap-food ceiling. MatchQueue's source and points accounting are unchanged from the pinned parent. Its future-block randomness is the existing non-financial testnet mechanism, not a VRF; [SECURITY.md](SECURITY.md) documents proposer bias and missed-fulfillment recovery.
+Zero-work settlement clears the lock without a training body bonus or inactivity reset. Positive-work settlement keeps v2's body formula and cheap-food ceiling. The time a pet spends locked waiting for certification is never charged as inactivity, and the owner can keep feeding on the 72-hour cadence through that wait; hunger is still the owner's to prevent. MatchQueue keeps the pinned parent's queue, randomness, quota and points accounting; only its band rule changed from a 25-point grid to the geometric bands above, because one certified window pays thousands of stamina at live Sepolia work levels (the pinned 1012-work window pays 2024 / 3036 / 4048) and a linear grid would never pair two trained pets. Its future-block randomness is the existing non-financial testnet mechanism, not a VRF; [SECURITY.md](SECURITY.md) documents proposer bias and missed-fulfillment recovery.
 
 ## After launch
 
@@ -70,7 +72,8 @@ Zero-work settlement clears the lock without a training body bonus or inactivity
 | Owner | Withdraw earned feed fees with `withdraw(amount)`; transfers go only to the current owner |
 | Players / keeper | Settle certified training, request queue rounds, fulfill within the blockhash window, settle matches, and evict/expire stale queue states |
 | Squeekchain Reporter / governance | Certify upstream work and maintain Core availability; HamsterRun cannot perform or accelerate this role |
-| Client operator | Publish confirmed v3 addresses and ABI hashes, display frontier versus booked end, and monitor upstream ABI/clock changes |
+| Client operator | Publish confirmed v3 addresses and ABI hashes, display frontier versus booked end with the certification-lag banner, keep feeding available during the wait, and monitor upstream ABI/clock changes |
+| Squeekchain Reporter (trust assumption) | Throughput is one booked window per certification lag (about 6.8 days behind at review time). A `roundDuration` or ABI change on the upgradeable Core proxy stops new bookings or settlement for good; cancellation always remains |
 
 Owner handover uses two-step acceptance. Owner mints share the 9999 supply limit. Queue replacement and ownership renunciation are disabled. No keeper subscription, scheduled service, or transaction funding is bundled. Feed payments buy care and are not escrowed against work: zero work, cancellation, and a delayed Reporter do not create a refund claim.
 
@@ -107,9 +110,9 @@ On Sepolia after owner setup:
 
    **WAITING FOR CORE CERTIFICATION — settle is unavailable. No gain is known yet.**
 
-   A wall-clock countdown is not readiness. Disable settlement while lagging. Display an unavailable error on RPC/Core read failure, not zero work. If the owner wants to leave, `cancelTraining(id)` unlocks without a reward.
+   A wall-clock countdown is not readiness. Disable settlement while lagging. Display an unavailable error on RPC/Core read failure, not zero work. Keep the feed button enabled while the banner shows: the pet's 72-hour food window keeps running during the wait and `feed(id,tier)` is allowed in Training (the booked tier is unaffected). Show the pet's body score without an idle penalty for the wait. If the owner wants to leave, `cancelTraining(id)` unlocks without a reward. At review time the live frontier was about 6.8 days (980 rounds) behind the clock, so expect this banner to be the normal state of a fresh booking.
 4. Once `ready` is true, `work` and `gain` are authoritative for that call. Anyone calls `settleTraining(id)`. For a five-unit window, high food adds 20; for zero units, it adds zero. A false `ready` must never be interpreted as a known zero reward. Observations from the CLI use finality and may lag the latest block.
-5. Each owner calls `MatchQueue.enqueue(id)`. Use the actual `bandOf(id)`; work can produce a different band than v2. The wallets need the same band. After each has waited ten blocks, anyone calls `requestRound(band)` when `eligibleCount(band) >= 2`.
+5. Each owner calls `MatchQueue.enqueue(id)`. Use the actual `bandOf(id)` (or `bandForStamina(stamina)` to preview): below 500 stamina every pet is in band 0, and above that pets within a factor of two share a band, so two pets trained on comparable windows (say 8862 and 8010 stamina) both sit in band 5. The wallets need the same band. After each has waited ten blocks, anyone calls `requestRound(band)` when `eligibleCount(band) >= 2`.
 6. After `entropyBlock` and no later than `entropyBlock + 256`, anyone calls `fulfillRound(roundId)`, then `settleMatch(matchId)` for each emitted match. The pair's combined stamina grows by 4 and points by 12; both unlock. An odd roster receives one random bye with its attempt refunded.
 
 The raw [Core snapshot](docs/core-sepolia-snapshot.json) is pinned to finalized Sepolia block **12047523**. It reports frontier **1973**, genesis **1791847800**, duration **600**, implementation version **3**, and timestamp **1793614932** (derived current round **2946**). A new booking at that observation would end at 2951 and wait for certification. This is historical evidence, not a claim that the Reporter has caught up or a substitute for a fresh read. The offline ABI test also decodes a real sparse window with 1012 certified work units.

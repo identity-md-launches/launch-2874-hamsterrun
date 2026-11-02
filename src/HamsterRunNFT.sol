@@ -44,6 +44,8 @@ contract HamsterRunNFT is ERC721, Ownable2Step, ReentrancyGuard, CoreReader {
         uint256 lastTrainAt;
         uint256 idleDaysApplied;
         uint256 hungerDaysApplied;
+        /// @dev Booking time of the active Training lock; the inactivity clock is paused from here.
+        uint256 trainBookedAt;
     }
 
     struct Training {
@@ -173,8 +175,10 @@ contract HamsterRunNFT is ERC721, Ownable2Step, ReentrancyGuard, CoreReader {
         return _mintHamster(player, false);
     }
 
+    /// @notice Allowed while Idle or Training: a booking keeps the food snapshot taken at its start, so
+    ///         feeding during the (unbounded) certification wait only renews the 72h window and body care.
     function feed(uint256 tokenId, uint8 tier) external payable nonReentrant {
-        _requireOwnerIdle(tokenId);
+        _requireOwnerFeedable(tokenId);
         if (tier > 2) revert InvalidTier();
         if (msg.value != foodPrices[tier]) revert IncorrectPayment();
         _syncBody(tokenId);
@@ -198,6 +202,8 @@ contract HamsterRunNFT is ERC721, Ownable2Step, ReentrancyGuard, CoreReader {
         Hamster storage ham = _hamsters[tokenId];
         _syncBody(tokenId);
         training[tokenId] = Training(startRound, endRound, ham.trainBps, ham.foodTier);
+        // The certification wait is not idleness: the inactivity clock pauses here until the lock clears.
+        _careClocks[tokenId].trainBookedAt = block.timestamp;
         _setActivity(tokenId, Activity.Training);
         emit TrainingStarted(tokenId, startRound, endRound, ham.trainBps);
     }
@@ -221,6 +227,8 @@ contract HamsterRunNFT is ERC721, Ownable2Step, ReentrancyGuard, CoreReader {
             CareClock storage clock = _careClocks[tokenId];
             clock.lastTrainAt = block.timestamp;
             clock.idleDaysApplied = 0;
+        } else {
+            _resumeIdleClock(tokenId);
         }
         delete training[tokenId];
         _setActivity(tokenId, Activity.Idle);
@@ -232,6 +240,7 @@ contract HamsterRunNFT is ERC721, Ownable2Step, ReentrancyGuard, CoreReader {
         if (ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
         if (_hamsters[tokenId].activity != Activity.Training) revert NoTraining();
         _syncBody(tokenId);
+        _resumeIdleClock(tokenId);
         delete training[tokenId];
         _setActivity(tokenId, Activity.Idle);
         emit TrainingCancelled(tokenId);
@@ -382,7 +391,7 @@ contract HamsterRunNFT is ERC721, Ownable2Step, ReentrancyGuard, CoreReader {
         if (totalSupply >= MAX_SUPPLY) revert SoldOut();
         tokenId = ++totalSupply;
         _hamsters[tokenId] = Hamster(START_STAMINA, 0, 10_000, 50, WeightClass.Normal, Activity.Idle, 0);
-        _careClocks[tokenId] = CareClock(block.timestamp, block.timestamp, 0, 0);
+        _careClocks[tokenId] = CareClock(block.timestamp, block.timestamp, 0, 0, 0);
         _safeMint(player, tokenId);
         emit HamsterMinted(tokenId, player, free);
     }
@@ -390,6 +399,14 @@ contract HamsterRunNFT is ERC721, Ownable2Step, ReentrancyGuard, CoreReader {
     function _requireOwnerIdle(uint256 tokenId) private view {
         if (ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
         if (_hamsters[tokenId].activity != Activity.Idle) revert Locked();
+    }
+
+    /// @dev Queue and match locks hold a stamina/weight snapshot that food must not disturb; a Training
+    ///      lock holds only its own booking snapshot, which feed never touches.
+    function _requireOwnerFeedable(uint256 tokenId) private view {
+        if (ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
+        Activity activity = _hamsters[tokenId].activity;
+        if (activity != Activity.Idle && activity != Activity.Training) revert Locked();
     }
 
     function _requireFed(uint256 tokenId) private view {
@@ -415,12 +432,23 @@ contract HamsterRunNFT is ERC721, Ownable2Step, ReentrancyGuard, CoreReader {
     {
         Hamster storage ham = _hamsters[tokenId];
         CareClock storage clock = _careClocks[tokenId];
-        idleDays = (block.timestamp - clock.lastTrainAt) / 1 days;
+        // Inactivity counts only outside a Training lock: a booked pet is waiting on Core, not idle.
+        uint256 idleUntil = ham.activity == Activity.Training ? clock.trainBookedAt : block.timestamp;
+        idleDays = (idleUntil - clock.lastTrainAt) / 1 days;
         // A never-fed newborn is hungry for gameplay gates, but its first feed window carries no damage.
         uint256 hungerStart = ham.fedUntil == 0 ? clock.bornAt + FEED_SECONDS : ham.fedUntil;
         if (block.timestamp > hungerStart) hungerDays = 1 + (block.timestamp - hungerStart - 1) / 1 days;
         uint256 damage = (idleDays - clock.idleDaysApplied) * 5 + (hungerDays - clock.hungerDaysApplied) * 5;
         score = damage >= ham.bodyScore ? 0 : ham.bodyScore - damage;
+    }
+
+    /// @dev Leaving Training without positive work (zero-work settle, cancel): the locked span is removed
+    ///      from the inactivity clock so the wait is never billed, but the partial day in progress at booking
+    ///      resumes where it paused. This is a pause, not the reset positive work earns. Call before the
+    ///      activity changes, after `_syncBody` has applied every day completed up to the booking.
+    function _resumeIdleClock(uint256 tokenId) private {
+        CareClock storage clock = _careClocks[tokenId];
+        clock.lastTrainAt += block.timestamp - clock.trainBookedAt;
     }
 
     function _syncBody(uint256 tokenId) private {

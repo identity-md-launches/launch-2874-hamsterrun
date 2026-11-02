@@ -113,7 +113,8 @@ contract WorldHandler is Test {
     function feed(uint256 petSeed, uint256 tierSeed) external {
         uint256 id = _pet(petSeed);
         uint8 tier = uint8(tierSeed % 3);
-        if (nft.hamster(id).activity != Activity.Idle) {
+        Activity activity = nft.hamster(id).activity;
+        if (activity == Activity.Queued || activity == Activity.Matched) {
             uint256 price = nft.foodPrices(tier);
             _mustRevert(
                 nft.ownerOf(id), address(nft), price, abi.encodeCall(nft.feed, (id, tier)), "locked feed"
@@ -121,8 +122,22 @@ contract WorldHandler is Test {
             hits["feedLocked"]++;
             return;
         }
+        if (activity == Activity.Training) {
+            // A booked pet may be fed through the certification wait; its booking snapshot never moves.
+            bytes memory booking = _booking(id);
+            _feedPet(id, tier);
+            assertEq(_booking(id), booking, "feeding never alters a booking");
+            assertEq(uint256(nft.hamster(id).activity), uint256(Activity.Training));
+            hits["feedWhileTraining"]++;
+            return;
+        }
         _feedPet(id, tier);
         hits["feedOk"]++;
+    }
+
+    function _booking(uint256 id) private view returns (bytes memory) {
+        (uint64 start, uint64 end, uint256 bps, uint8 tier) = nft.training(id);
+        return abi.encode(start, end, bps, tier);
     }
 
     function _feedPet(uint256 id, uint8 tier) private {
@@ -290,9 +305,9 @@ contract WorldHandler is Test {
             if (_mayEnter(id)) first = id;
         }
         if (first == 0) return;
-        uint256 band = nft.hamster(first).stamina / 25;
+        uint256 band = queue.bandForStamina(nft.hamster(first).stamina);
         for (uint256 id = 1; id <= ghostMinted; ++id) {
-            if (_mayEnter(id) && nft.hamster(id).stamina / 25 == band) _enter(id);
+            if (_mayEnter(id) && queue.bandForStamina(nft.hamster(id).stamina) == band) _enter(id);
         }
         vm.roll(_block() + 10); // the anti-steering wait before any entry can be locked
         uint256 eligible = _eligibleCount(band);
@@ -397,7 +412,7 @@ contract WorldHandler is Test {
             assertEq(racers[i].stamina, ham.stamina, "stamina snapshot");
             assertEq(uint256(racers[i].weight), uint256(ham.weight), "weight snapshot");
             assertEq(racers[i].player, nft.ownerOf(id));
-            assertEq(ham.stamina / 25, band, "only pets of this band");
+            assertEq(queue.bandForStamina(ham.stamina), band, "only pets of this band");
             assertEq(uint256(ham.activity), uint256(Activity.Matched));
             assertFalse(nft.isHungry(id), "only fed pets lock");
             ghostInOpenRace[id] = true;
@@ -901,7 +916,7 @@ contract StatefulInvariantsTest is GameTest {
             (uint256 band, uint256 index) = queue.position(id);
             if (ham.activity == Activity.Queued) {
                 ++queued;
-                assertEq(band, ham.stamina / 25, "stamina cannot move while waiting");
+                assertEq(band, queue.bandForStamina(ham.stamina), "stamina cannot move while waiting");
                 MatchQueue.Entry[] memory entries = queue.queueEntries(band);
                 assertGt(index, 0);
                 assertLe(index, entries.length);
@@ -1050,9 +1065,10 @@ contract StatefulInvariantsTest is GameTest {
     /// @dev A seeded walk through the same handler, in the same proportions as the campaign. It proves that
     ///      each branch the invariants lean on is reached, so they are not passing over an empty game.
     function test_seededWalkReachesEveryOutcomeAndKeepsEveryInvariant() public {
-        string[25] memory labels = [
+        string[26] memory labels = [
             "feedOk",
             "feedLocked",
+            "feedWhileTraining",
             "feedRefused",
             "trainOk",
             "trainRefused",

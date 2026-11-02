@@ -48,7 +48,7 @@ contract MatchQueueTest is GameTest {
         nft.settleTraining(a);
         nft.settleTraining(b);
         assertEq(nft.hamster(a).stamina, 30);
-        assertEq(queue.bandOf(a), 1);
+        assertEq(queue.bandOf(a), 0, "below 500 stamina every pet shares band 0");
         uint256 round = _pair(alice, a, bob, b);
         uint256[] memory ids = _fulfill(round, keccak256("smoke path future block"));
         assertEq(ids.length, 1);
@@ -133,9 +133,16 @@ contract MatchQueueTest is GameTest {
     }
 
     function test_distinctStaminaBandsCannotPair() public {
+        HamsterHarness harness = new HamsterHarness(owner, address(core));
+        nft = harness;
+        queue = new MatchQueue(address(nft));
+        vm.startPrank(owner);
+        nft.setMintOpen(true);
+        nft.setMatchQueue(address(queue));
+        vm.stopPrank();
         uint256 a = _mintFed(alice, 2);
         uint256 b = _mintFed(bob, 0);
-        _train(alice, a);
+        harness.setStaminaForTest(a, 500);
         assertEq(queue.bandOf(a), 1);
         assertEq(queue.bandOf(b), 0);
         _enqueue(alice, a);
@@ -456,7 +463,7 @@ contract MatchQueueTest is GameTest {
         vm.warp((week + 1) * 1 weeks);
         _feed(carol, a, 2);
         _feed(bob, b, 2);
-        // Different rewards may have moved one pet into the next band; train both into band 1.
+        // Both pets stay far below 500 stamina, so they remain in band 0 whatever their rewards.
         _train(carol, a);
         _train(bob, b);
         assertEq(nft.matchesThisWeek(a), 0);

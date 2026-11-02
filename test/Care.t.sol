@@ -118,11 +118,20 @@ contract CareTest is GameTest {
         vm.expectRevert(HamsterRunNFT.Locked.selector);
         nft.startTraining(id);
         vm.expectRevert(HamsterRunNFT.Locked.selector);
-        nft.feed{ value: 0.0003 ether }(id, 2);
-        vm.expectRevert(HamsterRunNFT.Locked.selector);
         nft.transferFrom(alice, bob, id);
         vm.expectRevert(HamsterRunNFT.Locked.selector);
         queue.enqueue(id);
+        // Feeding stays open through the lock so the certification wait cannot starve the pet.
+        (uint64 bookedStart, uint64 bookedEnd, uint256 bookedBps, uint8 bookedTier) = nft.training(id);
+        nft.feed{ value: 0.0003 ether }(id, 2);
+        {
+            (uint64 start2, uint64 end2, uint256 bps2, uint8 tier2) = nft.training(id);
+            assertEq(
+                abi.encode(start2, end2, bps2, tier2),
+                abi.encode(bookedStart, bookedEnd, bookedBps, bookedTier),
+                "the booking snapshot ignores later feeds"
+            );
+        }
         vm.stopPrank();
         (, uint64 end,,) = nft.training(id);
         vm.expectRevert(abi.encodeWithSelector(CoreReader.CoreCertificationLag.selector, uint64(0), end));

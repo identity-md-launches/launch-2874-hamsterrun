@@ -494,9 +494,23 @@ contract CareEdgesTest is GameTest {
         uint256 settledBody = _body(settled);
         assertEq(cancelledBody, 62);
         assertEq(settledBody, 78);
+        // Both pets were locked for the one-hour window; that hour is paused, not idle, for the cancelled pet.
+        uint256 locked = block.timestamp - start;
+        assertEq(locked, 1 hours);
         vm.warp(start + 1 days);
-        assertEq(_body(cancelled), cancelledBody - 5, "one full day since birth with no settled training");
+        assertEq(
+            _body(cancelled),
+            cancelledBody,
+            "the locked hour is excised, so the first idle day is not complete"
+        );
         assertEq(_body(settled), settledBody, "less than a day since settlement");
+        vm.warp(start + 1 days + locked);
+        assertEq(
+            _body(cancelled), cancelledBody - 5, "one full unlocked day since birth; cancel gave no reset"
+        );
+        assertEq(
+            _body(settled), settledBody - 5, "exactly a day since settlement: the reset clock runs again"
+        );
     }
 
     function test_transferKeepsAllCareStateAndGivesNoReset() public {

@@ -33,14 +33,14 @@ contract QueueEdgesTest is GameTest {
 
     // ---------------------------------------------------------------- band and wallet locks
 
-    function test_bandEdgesSeparateAt25AndPairInsideTheBand() public {
+    function test_bandEdgesSeparateAt500AndPairInsideTheBand() public {
         HamsterHarness harness = _harness();
         uint256 a = _mintFed(alice, 0);
         uint256 b = _mintFed(bob, 0);
         uint256 c = _mintFed(carol, 0);
-        harness.setStaminaForTest(a, 24);
-        harness.setStaminaForTest(b, 25);
-        harness.setStaminaForTest(c, 49);
+        harness.setStaminaForTest(a, 499);
+        harness.setStaminaForTest(b, 500);
+        harness.setStaminaForTest(c, 999);
         assertEq(queue.bandOf(a), 0);
         assertEq(queue.bandOf(b), 1);
         assertEq(queue.bandOf(c), 1);
@@ -61,13 +61,14 @@ contract QueueEdgesTest is GameTest {
     }
 
     function test_oneWalletRacesOnePetAcrossAllBandsUntilSettled() public {
+        HamsterHarness harness = _harness();
         uint256 low = _mintFed(alice, 0);
         vm.prank(owner);
         uint256 high = nft.ownerMint(alice);
         _feed(alice, high, 2);
-        _train(alice, high);
+        harness.setStaminaForTest(high, 2000);
         assertEq(queue.bandOf(low), 0);
-        assertEq(queue.bandOf(high), 1);
+        assertEq(queue.bandOf(high), 3);
         uint256 b = _mintFed(bob, 0);
         _enqueue(alice, low);
         vm.prank(alice);
@@ -260,10 +261,13 @@ contract QueueEdgesTest is GameTest {
             _enqueue(player, _mintFed(player, 0));
         }
         uint256 high = _mintFed(alice, 2);
-        _train(alice, high);
+        vm.prank(alice);
+        nft.startTraining(high);
+        _certifyTraining(nft, high, 250); // 1000 stamina at high food: band 2
+        nft.settleTraining(high);
         _feed(alice, high, 2);
         _enqueue(alice, high);
-        assertEq(queue.queueEntries(1).length, 1);
+        assertEq(queue.queueEntries(2).length, 1);
     }
 
     function test_leaveAndEvictRejectPetsThatAreNotWaiting() public {
@@ -545,7 +549,7 @@ contract QueueEdgesTest is GameTest {
         harness.setBodyForTest(b, bodyB);
         _enqueue(alice, a);
         _enqueue(bob, b);
-        uint256 band = staminaA / 25;
+        uint256 band = queue.bandForStamina(staminaA);
         _waitQueueWindow();
         uint256 round = queue.requestRound(band);
         uint256 target = _target(round);
@@ -603,7 +607,7 @@ contract QueueEdgesTest is GameTest {
         _enqueue(alice, a);
         _enqueue(bob, b);
         _waitQueueWindow();
-        uint256 round = queue.requestRound(40);
+        uint256 round = queue.requestRound(2); // 1000 stamina sits in [500 * 2, 500 * 4)
         vm.warp(block.timestamp + 365 days);
         assertEq(uint256(nft.hamster(a).weight), uint256(WeightClass.Obese));
         uint256[] memory ids = _fulfill(round, keccak256("old snapshot"));
@@ -935,7 +939,8 @@ contract QueueEdgesTest is GameTest {
         assertEq(nft.ROUND_SECONDS(), 600);
         assertEq(nft.WEEKLY_MATCH_LIMIT(), 5);
         assertEq(nft.MAX_TRAIN_BPS(), 50_000);
-        assertEq(queue.BAND_WIDTH(), 25);
+        assertEq(queue.BAND_WIDTH(), 500);
+        assertEq(nft.STAMINA_PER_WORK(), 2);
         assertEq(queue.MAX_QUEUE_SIZE(), 32);
         assertEq(queue.QUEUE_TTL(), 86_400);
         assertEq(queue.RANDOM_DELAY(), 2);
