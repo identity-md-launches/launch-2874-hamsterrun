@@ -197,8 +197,25 @@ contract CertifiedWorkOracleTest is GameTest {
         vm.expectRevert(HamsterRunNFT.Locked.selector);
         queue.enqueue(id);
         assertEq(queue.activeToken(alice), 0);
+        // Feeding a booked pet is allowed (DESIGN: the wait on Core is unbounded) but must not touch the
+        // booking's food snapshot, and the lock must survive it.
+        (uint64 s0, uint64 e0, uint256 bps0, uint8 tier0) = nft.training(id);
+        vm.warp(vm.getBlockTimestamp() + 1 days);
+        _feed(alice, id, 0);
+        (uint64 s1, uint64 e1, uint256 bps1, uint8 tier1) = nft.training(id);
+        assertEq(abi.encode(s0, e0, bps0, tier0), abi.encode(s1, e1, bps1, tier1));
+        assertEq(bps1, 20_000);
+        assertEq(nft.hamster(id).fedUntil, vm.getBlockTimestamp() + 72 hours);
+        assertEq(uint256(nft.hamster(id).activity), uint256(Activity.Training));
         vm.prank(alice);
-        vm.expectRevert(HamsterRunNFT.Locked.selector);
+        vm.expectRevert(HamsterRunNFT.IncorrectPayment.selector);
+        nft.feed{ value: 0.0002 ether }(id, 2);
+        vm.prank(alice);
+        vm.expectRevert(HamsterRunNFT.InvalidTier.selector);
+        nft.feed{ value: 0.0003 ether }(id, 3);
+        vm.deal(bob, 1 ether);
+        vm.prank(bob);
+        vm.expectRevert(HamsterRunNFT.NotTokenOwner.selector);
         nft.feed{ value: 0.0003 ether }(id, 2);
 
         uint256 other = _mintFed(bob, 2);
@@ -206,6 +223,10 @@ contract CertifiedWorkOracleTest is GameTest {
         vm.prank(bob);
         vm.expectRevert(HamsterRunNFT.Locked.selector);
         nft.startTraining(other);
+        // A queue lock still forbids feeding: the queue holds a stamina/weight snapshot.
+        vm.prank(bob);
+        vm.expectRevert(HamsterRunNFT.Locked.selector);
+        nft.feed{ value: 0.0003 ether }(other, 2);
         vm.expectRevert(HamsterRunNFT.NoTraining.selector);
         nft.settleTraining(other);
         vm.prank(bob);
@@ -273,6 +294,9 @@ contract TrainingOracleHandler is Test {
     uint256 public positiveSettlements;
     uint256 public cancels;
     uint256 public lagReverts;
+    uint256 public trainingFeeds;
+    uint256 public pausedChecks;
+    bool public bodyViolation;
     bool public doubleCredit;
 
     constructor(HamsterRunNFT nft_, MockSqueekCore core_, address owner_, address[6] memory players_) {
@@ -285,15 +309,23 @@ contract TrainingOracleHandler is Test {
         }
     }
 
+    function _bookingHash(uint256 id) internal view returns (bytes32) {
+        (uint64 s, uint64 e, uint256 bps, uint8 tier) = nft.training(id);
+        return keccak256(abi.encode(s, e, bps, tier));
+    }
+
     function feed(uint256 petSeed, uint8 tierSeed) external {
         uint256 id = 1 + petSeed % 6;
-        if (nft.hamster(id).activity != Activity.Idle) return;
+        // Idle and Training pets are feedable; a Training booking must keep its snapshot.
+        bytes32 before = _bookingHash(id);
         uint8 tier = tierSeed % 3;
         uint256 price = nft.foodPrices(tier);
         vm.deal(players[id - 1], price);
         vm.prank(players[id - 1]);
         nft.feed{ value: price }(id, tier);
         paid += price;
+        if (_bookingHash(id) != before) doubleCredit = true;
+        if (nft.hamster(id).activity == Activity.Training) ++trainingFeeds;
     }
 
     function start(uint256 petSeed) external {
@@ -348,8 +380,12 @@ contract TrainingOracleHandler is Test {
         for (uint64 r = s; r <= e; ++r) {
             work += ledger[r];
         }
+        uint256 score = nft.hamster(id).bodyScore;
         vm.prank(caller);
         nft.settleTraining(id);
+        // Zero work: unchanged body. Positive work: never worse than the projection it starts from.
+        uint256 after_ = nft.hamster(id).bodyScore;
+        if (work == 0 ? after_ != score : after_ < score) bodyViolation = true;
         expectedStamina[id] += work * 2 * bps / 10_000;
         lastCreditedEnd[id] = e;
         ++settlements;
@@ -359,13 +395,31 @@ contract TrainingOracleHandler is Test {
     function cancel(uint256 petSeed) external {
         uint256 id = 1 + petSeed % 6;
         if (nft.hamster(id).activity != Activity.Training) return;
+        uint256 score = nft.hamster(id).bodyScore;
         vm.prank(players[id - 1]);
         nft.cancelTraining(id);
         ++cancels;
+        // Cancelling only applies the projection already visible: no credit, no penalty, no reset.
+        if (nft.hamster(id).bodyScore != score) bodyViolation = true;
     }
 
     function advance(uint32 secondsSeed) external {
+        uint256[7] memory before;
+        for (uint256 id = 1; id <= 6; ++id) {
+            before[id] = nft.hamster(id).bodyScore;
+        }
         vm.warp(vm.getBlockTimestamp() + uint256(secondsSeed) % 2 days);
+        for (uint256 id = 1; id <= 6; ++id) {
+            HamsterRunNFT.Hamster memory ham = nft.hamster(id);
+            // Time alone never improves health.
+            if (ham.bodyScore > before[id]) bodyViolation = true;
+            // A booked pet that is still fed now was fed throughout (fedUntil is fixed while time passes),
+            // so neither the idle nor the hunger clock may have charged it anything.
+            if (ham.activity == Activity.Training && !nft.isHungry(id)) {
+                if (ham.bodyScore != before[id]) bodyViolation = true;
+                ++pausedChecks;
+            }
+        }
     }
 
     function withdraw(uint256 seed) external {
@@ -421,6 +475,8 @@ contract TrainingOracleInvariantTest is GameTest {
         assertGt(handler.positiveSettlements(), 0, "no positive-work settlement reached");
         assertGt(handler.lagReverts(), 0, "no certification-lag revert reached");
         assertGt(handler.cancels(), 0, "no cancellation reached");
+        assertGt(handler.trainingFeeds(), 0, "no feed during a booking reached");
+        assertGt(handler.pausedChecks(), 0, "no fed booked pet observed across a warp");
     }
 
     /// forge-config: default.invariant.runs = 64
@@ -450,6 +506,7 @@ contract TrainingOracleInvariantTest is GameTest {
             (uint64 s, uint64 e, uint256 bps, uint8 tier) = nft.training(id);
             HamsterRunNFT.TrainingStatus memory status = nft.trainingStatus(id);
             assertLe(ham.bodyScore, 100);
+            assertFalse(handler.bodyViolation());
             assertEq(uint256(ham.weight), uint256(GameMath.weightClass(ham.bodyScore)));
             if (ham.activity == Activity.Training) {
                 assertTrue(status.active);
