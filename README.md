@@ -1,124 +1,100 @@
-# HamsterRun v3 — certified wheel training
+# HamsterRun v3 · HAM Pocket
 
-Training now earns stamina only from physical work certified by SqueekCore on Sepolia. Starting training books six rounds; elapsed time alone never pays. The NFT name is **hamsterrun**, symbol **HMR**.
+A bright Game Boy green public game site for the deployed **v3 Sepolia** contracts. The playable interface is in `web/`; the complete static export is in [`dist/`](dist/index.html). The existing Solidity, Foundry configuration, dependencies and application ABIs are unchanged.
 
-This delivery is a **new, versioned suite**, ready for the IdentityMD network deployment. No transaction was signed or broadcast. New addresses are pending in [deployments/sepolia.json](deployments/sepolia.json); the old v2 addresses are separately labeled in [deployments/sepolia-v2.json](deployments/sepolia-v2.json). Do not use the old NFT with the new ABI.
+The site supports wallet discovery, free minting, owned hamster IDs, care, certified-wheel training, geometric-band matchmaking and invite links. It reads live mint and queue status on every load. It never reports success from a wallet prompt alone: actions are simulated, sent through the visitor’s wallet, and confirmed by a transaction receipt.
 
-## Contracts and deployment parameters
+## Install, build and preview
 
-| Order | Application | Nonpayable constructor arguments |
-| --- | --- | --- |
-| 1 | `HamsterRunNFT` | `initialOwner`: `0x6c14430adacc99e27f6180bc5a74d6768616bf4a`; `coreAddress`: `0x74665dAecA35A2303e767E76a2FF1FB6F93e119f` |
-| 2 | `MatchQueue` | `nftAddress`: the new `HamsterRunNFT` address from step 1 |
-
-Chain: **Sepolia, 11155111**. Both contracts are immutable implementations, without proxies. Constructors perform no external calls and work on an empty chain. The manifest step supplies `$owner` and the backward reference `$contract:HamsterRunNFT`; this repository deliberately contains no `launch.json`. `CoreReader` is an abstract component inherited by the NFT. `GameMath` is entirely internal; `PointsLedger` is abstract. Deploy only the two applications above.
-
-The Core binding is immutable. No owner can replace it, supply work, or bypass its frontier. Core itself is an upstream governance-upgradeable proxy: [published Core reference](https://docs.squeekchain.com/developers/core/). The exact v3 ABI is pinned in [abi/SqueekCore.upstream.json](abi/SqueekCore.upstream.json), its read subset in [abi/ISqueekCore.json](abi/ISqueekCore.json), and all ABI SHA-256 hashes in [abi/SHA256.json](abi/SHA256.json).
-
-## Build and verification
-
-Foundry at the repository root pins Solidity **0.8.26**, Cancun, optimizer 200 runs, and `bytecode_hash = "none"`. Dependencies are vendored ordinary files with licenses and pins in [dependencies.json](dependencies.json). No network, environment variables, submodules, FFI, filesystem cheatcodes, npm install, or keys are needed by the tests. The verifier supplies the pinned compiler. Node 22+ is sufficient for the optional dependency-free tooling checks.
+Use Node **22.13+** and npm. From the repository root:
 
 ```sh
-forge build
-FOUNDRY_FUZZ_SEED=0xbaf830ada79f2a3ded3bca9b270689b5115b737c37d804cb61cdc9a8b18ed84f forge test
-forge fmt --check
-node tools/export-abis.mjs --check
-node --test --test-isolation=none test/Tools.test.mjs
+npm --prefix web ci
+npm --prefix web run typecheck
+npm --prefix web run test
+npm --prefix web run build
+npm --prefix web run preview
 ```
 
-The seed is also pinned in `foundry.toml`. Run `node tools/export-abis.mjs` after changing the contracts and rebuilding. It exports both application ABIs and checks the Core interface against the independently published upstream ABI. Foundry compilation is the Solidity type check; its built-in lint output is reviewed in [SECURITY.md](SECURITY.md).
+Open the preview URL printed by Vite. The build exports `dist/index.html`, relative JS/CSS/font/image assets, two v3 ABIs and `dist/imd-deployment.json`. Once npm packages are installed, the build needs no network, credentials, Foundry artifacts, `.imd/reads/` files or serverless service. Live play does need Sepolia RPC access and a wallet.
 
-Tests cover certification lag, all-zero and sparse windows, work before/after the booked interval, food snapshots, hunger, overflow, malformed/unavailable Core responses, real Sepolia ABI return bytes, ownership, ERC-721 callbacks, the full supply cap, queue randomness/recovery, and stateful fee/reward/lock invariants. See [docs/VALIDATION.md](docs/VALIDATION.md) for the final run record.
+Vite uses `base: './'`. Hash navigation (`#care`, `#queue`, `#invite`, `#guide`) and invite query strings work under a static gateway subpath; no route rewrites are needed. Serve the whole `dist/` directory over HTTP(S), preserving its directory structure. The IdentityMD hosting plane publishes the committed export after review; this task does not publish, change contracts or produce a public URL itself.
 
-## Rules and formulas
+## Verified v3 integration
 
-Full boundaries and arithmetic are pinned in [DESIGN.md](DESIGN.md).
-
-| Rule | Value |
+| Contract | Sepolia address |
 | --- | --- |
-| Supply | 9999 per new collection; one free mint per wallet, starting stamina 10 |
-| Newborn | Body score 50, Normal, Hungry until fed; never burned for hunger |
-| Food lifetime | 72 hours from the latest feed; exact expiry is still fed |
-| Low / mid / high price | 0.0001 / 0.0002 / 0.0003 ETH |
-| Low / mid / high multiplier | 10000 / 15000 / 20000 bps |
-| Current round | `floor((now - Core.configuration().genesisTimestamp) / 600) + 1` |
-| Booked interval | `[currentRound, currentRound + 5]`, both endpoints inclusive |
-| Ready | `Core.state().settledThroughRound >= trainEndRound` |
-| Certified work `W` | `Core.roundPage(start-1, end, 6).end.cumulativeWork - .start.cumulativeWork` |
-| Training gain | `floor(2 * W * lastFeedBps / 10000)` |
-| Default gain per physical work unit | 2 / 3 / 4 stamina; all tiers earn 0 when `W = 0` |
-| Weight | Fit at body score ≥70; Normal 35–69; Obese 0–34 |
-| Feeding while booked | Allowed (Idle or Training); the booking keeps the food snapshot taken at `startTraining` |
-| Inactivity while booked | The idle clock pauses at booking; positive work resets it, zero work or cancel resumes it |
-| Match band / wait | Band 0 below 500 stamina, then `floor(log2(stamina / 500)) + 1` (each band spans ×2) / 10 blocks per entry |
-| Match attempts | 5 per NFT per Unix-epoch week |
-| Match reward | Winner +3 stamina/+10 points; loser +1 stamina/+2 points |
+| HamsterRunNFT | `0x2bb4f70787f00c70b18355495edbddeb25bb5dea` |
+| MatchQueue | `0xaa57478bb5bcf5060a4973066aa5523620932922` |
+| SqueekCore, read-only upstream | `0x74665dAecA35A2303e767E76a2FF1FB6F93e119f` |
 
-Two stamina per physical work unit is a chosen game conversion, not an upstream unit definition or token exchange rate. It keeps the existing 1×/1.5×/2× food multipliers strictly ordered even at one unit of work. Configurable multipliers must have gaps of at least 5000 bps and remain within 10000–50000. For positive work, tiers under the same configuration strictly order; zero work gives zero for everyone. Existing feeds retain their captured multiplier across configuration changes. No diminishing term, minimum reward, or time-based reward remains.
+Chain ID: **11155111**. Source commit: `fa23fe18551c431ada88350bd9d4d0a7dba04912` in [the v3 launch repository](https://github.com/identity-md-launches/launch-2874-hamsterrun/tree/fa23fe18551c431ada88350bd9d4d0a7dba04912).
 
-Stamina uses checked `uint256` addition with no gameplay cap. The last feed's tier and bps are captured at booking. Only the token owner may start while fed and Idle. Anyone may settle once certified, including after food expiry. The owner may cancel at any time, forfeiting all work. Cancellation remains possible if Core is paused, unavailable, or incompatible.
+[`web/deployment.json`](web/deployment.json) is the committed, verified website handoff. Its network block was copied byte for byte from the pinned network input. It includes the public RPCs, deployment blocks, ABI hashes, immutable-adjusted runtime hashes, chain switch parameters and an empty optional invite-service URL. It is the source for the generated runtime handoff; the older pending `deployments/sepolia.json` is not read by the website.
 
-Zero-work settlement clears the lock without a training body bonus or inactivity reset. Positive-work settlement keeps v2's body formula and cheap-food ceiling. The time a pet spends locked waiting for certification is never charged as inactivity, and the owner can keep feeding on the 72-hour cadence through that wait; hunger is still the owner's to prevent. MatchQueue keeps the pinned parent's queue, randomness, quota and points accounting; only its band rule changed from a 25-point grid to the geometric bands above, because one certified window pays thousands of stamina at live Sepolia work levels (the pinned 1012-work window pays 2024 / 3036 / 4048) and a linear grid would never pair two trained pets. Its future-block randomness is the existing non-financial testnet mechanism, not a VRF; [SECURITY.md](SECURITY.md) documents proposer bias and missed-fulfillment recovery.
+[`web/scripts/prepare.mjs`](web/scripts/prepare.mjs) checks the canonical Keccak ABI hashes and copies the exact root `abi/` exports to the public build. At runtime the site loads its addresses, chain and ABIs from those files, checks both deployed application runtimes, verifies the queue’s NFT and the NFT’s Core bindings, and requires upstream code before enabling any transaction. No v1/v2 address or ABI is loaded by the site.
 
-## After launch
+Recheck the deployed code and live state with:
 
-| Responsibility | Operation |
+```sh
+npm --prefix web run verify:release
+```
+
+This command is read-only and uses the handoff’s public Sepolia endpoints. The recorded live observations, ABI provenance and check results are in [`docs/SITE-VALIDATION.md`](docs/SITE-VALIDATION.md). Flags are observations, never build-time defaults: the page rereads them and refreshes while open.
+
+## Play
+
+- **Connect:** the header is the single connection entry. EIP-6963 lists extensions by name, including MetaMask and Rabby. A wrong-chain wallet gets Switch to Sepolia, with the pinned add-chain fallback. The mobile sheet offers wallet-browser links and Coinbase Smart Wallet. No relay or project ID is required. Connection is never requested on first paint; a previously authorized connection can restore on reload.
+- **Mint:** one free mint per wallet for life, maximum supply 9,999, 10 starting stamina. Supply and owned IDs are live. Received NFTs do not consume an unused wallet mint. A closed mint is visibly disabled. Gas still applies.
+- **Care:** body, weight, fed-until time, stamina and the five-attempt weekly quota are read from v3. Food prices and multipliers are live, with a review dialog before sending exactly the selected price. Hunger blocks new training and queue entry, never burns a hamster, and does not prevent certified settlement.
+- **Train:** book six consecutive Core rounds `[R, R+5]`. Read `trainingStatus`, show the frontier and booked end, and settle only once ready. Unknown work is never displayed as a known zero. Gain is `floor(2 * W * capturedBps / 10000)`. Feeding stays available while Training, including during certification lag; it changes the next booking’s food, not the active snapshot. Cancel requires a forfeiture confirmation.
+- **Queue:** read `bandOf`, wait ten blocks per entrant, then request a round with at least two eligible runners. The contract locks the roster; no opponent ID can be selected. Fulfill strictly after the entropy block and no later than `entropyBlock + 256`, then settle each persisted match. Expired pending rounds can be unlocked with Expire round. Attempts are spent at round lock; a fulfilled bye refunds one. Five attempts reset on Thursday at 00:00 UTC.
+- **Invite:** create `?ref=handle` links without an X login. The first valid referral persists in browser storage. Handles are unverified. Shared rankings say **offline** when no invite service is configured; no players or counts are invented.
+
+The UI help gives the owner setup order explicitly: verify and call `HamsterRunNFT.setMatchQueue(v3Queue)` once, then `setMintOpen(true)`. These are not public-site transactions. Binding and mint state may already be configured; read the live banner rather than resending setup. Default food settings need no setup.
+
+HAM is the website’s Pocket branding; the existing NFT’s on-chain symbol is **HMR**. There is no ERC-20 deployment, SQK issuance or yield, official SqueekMining relationship, insurance, or guaranteed airdrop. Race points and invite counts have no promised redemption.
+
+## Source map
+
+| Path | Responsibility |
 | --- | --- |
-| Network deployer | Deploy the NFT and queue in the order above; publish receipts, verify source, and complete the independent release review |
-| Owner | Verify the new queue's runtime and `nft()` binding; call `setMatchQueue(newQueue)` **once** |
-| Owner | Call `setMintOpen(true)` when ready; it defaults to false |
-| Owner | Keep the default food parameters or call `setFoodConfig(prices,bps)` within the documented bounds; default setup needs no config transaction |
-| Owner | Withdraw earned feed fees with `withdraw(amount)`; transfers go only to the current owner |
-| Players / keeper | Settle certified training, request queue rounds, fulfill within the blockhash window, settle matches, and evict/expire stale queue states |
-| Squeekchain Reporter / governance | Certify upstream work and maintain Core availability; HamsterRun cannot perform or accelerate this role |
-| Client operator | Publish confirmed v3 addresses and ABI hashes, display frontier versus booked end with the certification-lag banner, keep feeding available during the wait, and monitor upstream ABI/clock changes |
-| Squeekchain Reporter (trust assumption) | Throughput is one booked window per certification lag (about 6.8 days behind at review time). A `roundDuration` or ABI change on the upgradeable Core proxy stops new bookings or settlement for good; cancellation always remains |
+| `web/src/runtime.ts`, `data.ts` | Runtime handoff, verified code/bindings, block-consistent contract reads, owned-ID scanning |
+| `web/src/Wallet.tsx`, `Dialog.tsx` | Wallet discovery, mobile links, chain switching, native accessible dialogs |
+| `web/src/Care.tsx`, `Queue.tsx` | Mint, RPG care HUD, feeding/training, queue/round/match actions |
+| `web/src/transactions.ts` | Simulation, wallet requests, receipt-based success, rejection/revert handling and pending-hash recovery |
+| `web/src/Invite.tsx`, `invites.ts` | Handle validation, share links, local attribution, bounded optional-service requests |
+| `web/serverless/` | Optional D1-backed invite service and setup notes; not claimed to be deployed |
+| `web/src/styles.css`, `Art.tsx`, `web/public/` | Final palette, local fonts, original pixel art, favicon, social card and wallet marks |
+| `DESIGN.md` | Implemented website design system and responsive behavior |
+| `docs/CONTRACT-DESIGN-v3.md` | Verbatim preserved v3 contract formulas from the pinned source |
 
-Owner handover uses two-step acceptance. Owner mints share the 9999 supply limit. Queue replacement and ownership renunciation are disabled. No keeper subscription, scheduled service, or transaction funding is bundled. Feed payments buy care and are not escrowed against work: zero work, cancellation, and a delayed Reporter do not create a refund claim.
+The root Solidity project remains available for its existing development workflow. Its independent historical validation is in `docs/VALIDATION.md`; this website’s validation is separate. The application ABIs were independently regenerated from the pinned compiler output and checked, without changing those root exports.
 
-Local constructor rehearsals, with no broadcast:
+## Interaction validation
 
-```sh
-forge script script/Deploy.s.sol:DeployHamsterRunNFT --chain-id 11155111 --sig 'run(address)' 0x6c14430adacc99e27f6180bc5a74d6768616bf4a
-```
+The production build and typecheck pass. Seven Node tests cover exact band/body/hunger/fulfillment boundaries, certified gain rounding, invite validation and the optional service’s atomic first-attribution behavior. Nine Chromium test groups exercise the built export at a gateway subpath, including the full intercepted player lifecycle, failures, account/chain changes and responsive states. No test broadcasts a transaction.
 
-`DeployMatchQueue.run(address)` accepts the new NFT address. The network factory handles the actual deployment.
-
-After deployment reaches finality, invoke the read-only recorder with actual arguments:
-
-```text
-node tools/record-deployment.mjs RPC_URL NFT_ADDRESS QUEUE_ADDRESS
-```
-
-It checks Sepolia, both exact runtimes (including both immutable dependency addresses), the specified owner, Core ABI/clock, and the queue bindings at one finalized block. It then writes `deployments/sepolia.json`. It may record before owner setup, reporting `queueBound` and `mintOpen` explicitly. It never signs, broadcasts, reads environment variables, or stores the RPC URL. Use a provider supporting EIP-1898 block-hash references. A mismatch leaves the pending record untouched.
-
-## Smoke: mint → feed → book → certify → settle → match
-
-The deterministic smoke test runs without real waiting:
+To rerun the browser checks with an existing Playwright installation:
 
 ```sh
-forge test --match-test test_endToEndMintFeedTrainQueueRandomMatchSettle -vv
-forge test --match-path test/CoreTraining.t.sol -vv
+IMD_PLAYWRIGHT=/path/to/playwright/index.mjs \
+PLAYWRIGHT_BROWSERS_PATH=/path/to/installed-browsers \
+node web/test/browser.mjs
 ```
 
-On Sepolia after owner setup:
+The script serves the export only for its own lifetime, intercepts wallet/RPC writes, checks 320/390/768/1440 layouts, and writes temporary screenshots and results under `test/scratch/interaction/`. These temporary files are not delivery assets. Real wallet signing, passkey onboarding and native mobile-app handoffs were not exercised. WebKit was unavailable; no Safari pass is claimed.
 
-1. Two wallets each `mint()` and find their IDs in `HamsterMinted`/`Transfer`. Check stamina 10 with `hamster(id)`.
-2. Each `feed(id,2)` with exactly 0.0003 ETH, then `startTraining(id)`. Read `training(id)`: `(trainStartRound,trainEndRound,lastFeedBps,tier)`. There is no `readyAt` or promised gain.
-3. Read `trainingStatus(id)` or run `node tools/training-status.mjs RPC_URL NFT_ADDRESS TOKEN_ID`. Show **Core frontier** and **booked end** side by side. While `waitingForCertification` is true, display:
+The pinned taste probe passes **15 of 16** checks. The remaining `chrome` measurement is a deliberate brief-driven exception: the requested plastic shell, LCD inset and raised A/B-style buttons use nested bezels and border-plus-pixel-shadow depth. The first mobile screen contains the product and Connect; no measured overflow, overlap, clipping, contrast or target-size failure remains. See the six-domain review and limitations in [`docs/SITE-VALIDATION.md`](docs/SITE-VALIDATION.md).
 
-   **WAITING FOR CORE CERTIFICATION — settle is unavailable. No gain is known yet.**
+## Optional invite-service handoff and limits
 
-   A wall-clock countdown is not readiness. Disable settlement while lagging. Display an unavailable error on RPC/Core read failure, not zero work. Keep the feed button enabled while the banner shows: the pet's 72-hour food window keeps running during the wait and `feed(id,tier)` is allowed in Training (the booked tier is unaffected). Show the pet's body score without an idle penalty for the wait. If the owner wants to leave, `cancelTraining(id)` unlocks without a reward. At review time the live frontier was about 6.8 days (980 rounds) behind the clock, so expect this banner to be the normal state of a fresh booking.
-4. Once `ready` is true, `work` and `gain` are authoritative for that call. Anyone calls `settleTraining(id)`. For a five-unit window, high food adds 20; for zero units, it adds zero. A false `ready` must never be interpreted as a known zero reward. Observations from the CLI use finality and may lag the latest block.
-5. Each owner calls `MatchQueue.enqueue(id)`. Use the actual `bandOf(id)` (or `bandForStamina(stamina)` to preview): below 500 stamina every pet is in band 0, and above that pets within a factor of two share a band, so two pets trained on comparable windows (say 8862 and 8010 stamina) both sit in band 5. The wallets need the same band. After each has waited ten blocks, anyone calls `requestRound(band)` when `eligibleCount(band) >= 2`.
-6. After `entropyBlock` and no later than `entropyBlock + 256`, anyone calls `fulfillRound(roundId)`, then `settleMatch(matchId)` for each emitted match. The pair's combined stamina grows by 4 and points by 12; both unlock. An odd roster receives one random bye with its attempt refunded.
+The export is usable without the invite service. [`web/serverless/README.md`](web/serverless/README.md) explains deploying the small service separately, applying its D1 schema, setting its allowed site origin, and updating `inviteServiceUrl` before rebuilding. The browser submits anonymous IDs and handles only; it sends no wallet address to that service. This service is not Sybil-resistant and does not verify X ownership.
 
-The raw [Core snapshot](docs/core-sepolia-snapshot.json) is pinned to finalized Sepolia block **12047523**. It reports frontier **1973**, genesis **1791847800**, duration **600**, implementation version **3**, and timestamp **1793614932** (derived current round **2946**). A new booking at that observation would end at 2951 and wait for certification. This is historical evidence, not a claim that the Reporter has caught up or a substitute for a fresh read. The offline ABI test also decodes a real sparse window with 1012 certified work units.
+Owned IDs are confirmed from incoming v3 Transfer logs, scanned in bounded 10,000-block pages (up to 200 pages), then checked with `ownerOf`. An incomplete scan is shown honestly and the manual Inspect hamster ID form remains available. The queue displays the latest 12 rounds plus an optional older round ID; use the queue explorer to find an older round’s event ID if needed. Pending transaction hashes restore on reload; a confirmation timeout tells the player to check the explorer before resending. Core upgrades, delays, RPC outages and blockhash deadlines remain external constraints.
 
-## Versioned replacement of v2
+## Bundle and asset budget
 
-Care is fused into v2's immutable NFT, so its six-hour training cannot be patched at the existing address. Deploy both v3 applications anew, keep the old suite clearly labeled, and update any future client integration to the new addresses and ABIs. Existing v2 tokens, stamina, points, quota and mint history stay in v2; there is no state migration, bridge, forced burn, or conversion claim. The v3 wallet-mint flag and supply cap apply independently to its new collection.
+The added ignore rules have an explicit path budget: **only `/web/node_modules/` and `/web/.vite/`** are excluded as frontend dependencies/cache. The pre-existing Foundry/scratch exclusions are preserved. `dist/`, the source, `web/package.json`, `web/package-lock.json`, runtime ABIs/configuration, local fonts and images remain deliverable. No npm registry mirror, archive, generated dependency tree or submodule is included. The complete added-file bundle is below the 8 MiB cap; the static export is about 1 MB.
 
-No website, SQK issuance, SqueekMining claims, MatchBook challenge flow, insurance, airdrop entitlement, ERC-20, pool, or mainnet deployment is included. Provenance and exact retained dependencies are in [docs/PROVENANCE.md](docs/PROVENANCE.md).
+Fonts retain their SIL OFL notices under `web/public/fonts/`. Wallet marks retain the RainbowKit MIT license under `web/public/wallets/`. Better Interface design guidance (Jakub Krehel, MIT) and the adapted Impeccable documentation method (Paul Bakaus, Apache-2.0) retain their notices in `web/DESIGN-GUIDANCE-LICENSE`.

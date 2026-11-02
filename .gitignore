@@ -1,3 +1,6 @@
 out/
 cache/
 test/scratch/
+# Frontend path budget: installed packages and Vite cache only; dist is delivered.
+/web/node_modules/
+/web/.vite/

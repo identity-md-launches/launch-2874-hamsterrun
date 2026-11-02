@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "siteVersion": "3.0.0",
+  "launchId": "59e02817-a7e4-43ec-8d93-72e780fde22c",
+  "chainId": 11155111,
+  "sourceCommit": "fa23fe18551c431ada88350bd9d4d0a7dba04912",
+  "sourceUrl": "https://github.com/identity-md-launches/launch-2874-hamsterrun",
+  "network": {
+    "chainId": 11155111,
+    "name": "Sepolia",
+    "testnet": true,
+    "rpcUrls": [
+      "https://ethereum-sepolia-rpc.publicnode.com",
+      "https://rpc.sepolia.ethpandaops.io",
+      "https://sepolia.rpc.sentio.xyz"
+    ],
+    "explorer": "https://sepolia.etherscan.io",
+    "nativeCurrency": {
+      "name": "Sepolia Ether",
+      "symbol": "ETH",
+      "decimals": 18
+    },
+    "faucets": [
+      "https://cloud.google.com/application/web3/faucet/ethereum/sepolia",
+      "https://www.alchemy.com/faucets/ethereum-sepolia"
+    ],
+    "uniswapV4": {
+      "poolManager": "0xe03a1074c86cfedd5c142c4f04f1a1536e203543",
+      "universalRouter": "0x3a9d48ab9751398bbfa63ad67599bb04e4bdf98b",
+      "quoter": "0x61b3f2011a92d183c7dbadbda940a7555ccf9227",
+      "stateView": "0xe1dd9c3fa50edb962e442f60dfbc432e24537e4c",
+      "positionManager": "0x429ba70129df741b2ca2a85bc3a2a3328e5c09b4",
+      "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
+    }
+  },
+  "walletAddChain": {
+    "chainId": "0xaa36a7",
+    "chainName": "Sepolia",
+    "rpcUrls": [
+      "https://ethereum-sepolia-rpc.publicnode.com",
+      "https://rpc.sepolia.ethpandaops.io",
+      "https://sepolia.rpc.sentio.xyz"
+    ],
+    "nativeCurrency": {
+      "name": "Sepolia Ether",
+      "symbol": "ETH",
+      "decimals": 18
+    },
+    "blockExplorerUrls": [
+      "https://sepolia.etherscan.io"
+    ]
+  },
+  "contracts": [
+    {
+      "name": "HamsterRunNFT",
+      "address": "0x2bb4f70787f00c70b18355495edbddeb25bb5dea",
+      "txHash": "0xff9ae1aea8c460ea7f28fc89fb14788e12e109f0d9a8fb6148e6302d0303b2c1",
+      "blockNumber": 12048368,
+      "creationCodeHash": "4b311e7c3f32b0df9a72995d19408ebe06075ebffd0bd978314b59ddc11a00f6",
+      "abiHash": "0c06698c3ece134d042a8b2a7894e23637c93538c0642fc7300a0fe38d1f3f95",
+      "abi": "abi/HamsterRunNFT.json",
+      "runtimeCodeHash": "0x33b7d9a09a65f4772f84312e8fe3fc38c199b35ca38fa6d36b8e2c843c33bd30"
+    },
+    {
+      "name": "MatchQueue",
+      "address": "0xaa57478bb5bcf5060a4973066aa5523620932922",
+      "txHash": "0xff9ae1aea8c460ea7f28fc89fb14788e12e109f0d9a8fb6148e6302d0303b2c1",
+      "blockNumber": 12048368,
+      "creationCodeHash": "2b403e8d5729d9af4b449794309f53fcf10c2691febcd06834624274b6dcc513",
+      "abiHash": "c95c9bff6531b025ea10d93b7f51e734ce09f2c73722cca95d6177e458989857",
+      "abi": "abi/MatchQueue.json",
+      "runtimeCodeHash": "0x31c17ee6a2979689c7b6cc4736e015d28bf965d52411b94fc111bfa9e35bd645"
+    }
+  ],
+  "upstream": {
+    "name": "SqueekCore",
+    "address": "0x74665dAecA35A2303e767E76a2FF1FB6F93e119f"
+  },
+  "inviteServiceUrl": ""
+}
